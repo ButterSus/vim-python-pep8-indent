@@ -105,6 +105,35 @@ With ``python_pep8_indent_hang_closing = 1``, closing brackets line up with the 
        'd', 'e', 'f',
        )
 
+g:python_pep8_indent_keep_blank_line_indent
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Control blank line indentation behavior with ``python_pep8_indent_keep_blank_line_indent``, set globally or per buffer.
+
+By default (set to ``1``), when you press Enter after a blank line that had indentation, the plugin attempts to preserve that indentation level based on your cursor position::
+
+   def my_function():
+       some_code()
+           |  # cursor here on indented blank line, press Enter
+           |  # new line keeps the same indentation level
+
+With ``python_pep8_indent_keep_blank_line_indent = 0``, blank lines follow standard PEP8 rules, which typically indent to match the last non-blank line::
+
+   def my_function():
+       some_code()
+           |  # cursor here on indented blank line, press Enter
+       # new line indents to match the last content line (some_code)
+
+This feature addresses a common issue in modern Vim/Neovim configurations where blank lines are automatically trimmed of whitespace. Without this feature, when you press Enter on what appears to be an indented blank line, the indentation is lost because the line was already trimmed.
+
+The plugin intelligently tracks your cursor position and applies the following logic:
+
+- **Previous line**: If you press Enter on the line immediately after where you were editing, it preserves the indentation
+- **Nearby lines (≤3 lines away)**: If all intermediate lines are blank, it preserves the indentation  
+- **Distant lines (>3 lines away)**: Uses standard PEP8 indentation behavior
+- **Non-blank intermediate lines**: Uses standard PEP8 indentation behavior
+
+This helps maintain your intended indentation structure when working with blank lines, especially useful in functions, classes, and nested code blocks where you want to maintain consistent indentation levels.
 
 Troubleshooting
 ---------------

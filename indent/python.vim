@@ -47,6 +47,11 @@ if !exists('g:python_pep8_indent_searchpair_timeout')
     endif
 endif
 
+" Add new configuration option for blank line behavior
+if !exists('g:python_pep8_indent_keep_blank_line_indent')
+    let g:python_pep8_indent_keep_blank_line_indent = 1
+endif
+
 let s:block_rules = {
       \ '^\s*elif\>': [['if', 'elif'], ['else']],
       \ '^\s*except\>': [['try', 'except'], []],
@@ -70,6 +75,28 @@ let s:skip_after_opening_paren = 'synIDattr(synID(line("."), col("."), 0), "name
             \ '=~? "\\vcomment|jedi\\S"'
 
 let s:special_chars_syn_pattern = "\\vstring|comment|^pythonbytes%(contents)=$|pythonTodo|jedi\\S"
+
+" Track cursor position for blank line indentation (with row tracking)
+if !exists('g:python_pep8_last_cursor_pos')
+    let g:python_pep8_last_cursor_pos = [0, 0]  " [row, col]
+endif
+
+" Set up autocmd to track cursor position
+augroup PythonPEP8IndentTracking
+    autocmd!
+    autocmd CursorMovedI *.py let g:python_pep8_last_cursor_pos = [line('.'), col('.')]
+    autocmd InsertEnter *.py let g:python_pep8_last_cursor_pos = [line('.'), col('.')]
+augroup END
+
+" Helper function to check if all lines in range are blank
+function! s:all_lines_blank(start_line, end_line)
+    for lnum in range(a:start_line, a:end_line)
+        if getline(lnum) !~# '^\s*$'
+            return 0
+        endif
+    endfor
+    return 1
+endfunction
 
 if !get(g:, 'python_pep8_indent_skip_concealed', 0) || !has('conceal')
     " Skip strings and comments. Return 1 for chars to skip.
@@ -381,6 +408,37 @@ function! GetPythonPEPIndent(lnum)
 
     let line = getline(a:lnum)
     let prevline = getline(a:lnum-1)
+    let empty = getline(a:lnum) =~# '^\s*$'
+
+    " Handle blank line indentation preservation FIRST
+    if get(g:, 'python_pep8_indent_keep_blank_line_indent', 1) && empty
+        let prev_line = getline(a:lnum - 1)
+        let [saved_row, saved_col] = g:python_pep8_last_cursor_pos
+        
+        if prev_line =~# '^\s*$' && saved_col >= 1
+            let row_diff = abs(saved_row - a:lnum)
+            
+            " Case 1: Previous row - always keep indent (including zero)
+            if saved_row == a:lnum - 1
+                let estimated_indent = saved_col - 1
+                let sw = shiftwidth()
+                let rounded_indent = (estimated_indent / sw) * sw
+                return rounded_indent
+                
+            " Case 2: Within 3 lines - check if all intermediate lines are blank
+            elseif row_diff <= 3
+                let start_line = min([saved_row, a:lnum - 1])
+                let end_line = max([saved_row, a:lnum - 1])
+                
+                if s:all_lines_blank(start_line, end_line)
+                    let estimated_indent = saved_col - 1
+                    let sw = shiftwidth()
+                    let rounded_indent = (estimated_indent / sw) * sw
+                    return rounded_indent
+                endif
+            endif
+        endif
+    endif
 
     " Multilinestrings: continous, docstring or starting.
     if s:is_python_string(a:lnum-1, max([1, len(prevline)]))
